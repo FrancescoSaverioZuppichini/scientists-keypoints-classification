@@ -24,11 +24,12 @@ if __name__ == '__main__':
     # our hyperparameters
     params = {
         'lr': 1e-3,
-        'batch_size': 32,
-        'epochs': 100,
-        'model': 'my-cnn-[32-256]',
+        'batch_size': 64,
+        'epochs': 50,
+        'model': 'my-cnn-[32-128]',
         'id': time.time(),
-        'shuffle': True
+        'shuffle': True,
+        'seq_len': 9
     }
     logging.info(f'Using device={device} 🚀')
     # everything starts with the data
@@ -39,6 +40,7 @@ if __name__ == '__main__':
         batch_size=params['batch_size'],
         pin_memory=True,
         num_workers=4,
+        seq_len=params['seq_len']
     )
     cnn = MyCNN().to(device)
     # print the model summary to show useful information
@@ -51,7 +53,7 @@ if __name__ == '__main__':
         ModelCheckpoint(
             monitor='val_loss',
             dirpath=model_checkpoint_dir,
-            filename='{epoch:02d}-{val_loss:.2f}'
+            filename='best'
         ),
         EarlyStopping(monitor='val_loss', patience=10, verbose=True)
     ]
@@ -62,14 +64,16 @@ if __name__ == '__main__':
         workspace="francescosaveriozuppichini"
     )
     logger.log_hyperparams(params)
-    
+
     system = MySystem(model=cnn, lr=params['lr'])
 
-    trainer = Trainer(gpus=1, min_epochs=params['epochs'],
-                      progress_bar_refresh_rate=20, 
+    trainer = Trainer(gpus=1,
+                      min_epochs=params['epochs'],
+                      max_epochs=params['epochs'],
+                      progress_bar_refresh_rate=20,
                       logger=logger,
                       callbacks=callbacks)
 
     trainer.fit(system, train_dl, val_dl)
 
-    print(trainer.test(test_dataloaders=test_dl))
+    # print(trainer.test(test_dataloaders=test_dl))

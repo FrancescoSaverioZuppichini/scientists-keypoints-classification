@@ -12,13 +12,14 @@ def get_dataloaders(
         val_transform=None,
         split=(0.8, 0.2),
         batch_size=32,
+        seq_len=9,
         *args, **kwargs):
     """
     This function returns the train, val and test dataloaders.
     """
     # create the datasets
-    ds, _ = ScientistKeypointsDataset.from_root(root=root / 'train', transform=train_transform)
-    test_ds, _ = ScientistKeypointsDataset.from_root(root=root / 'test', transform=val_transform)
+    ds, _ = ScientistKeypointsDataset.from_root(root=root / 'train', transform=train_transform, seq_len=seq_len)
+    test_ds, _ = ScientistKeypointsDataset.from_root(root=root / 'test', transform=val_transform, seq_len=seq_len)
     # now we want to split the train_ds in train and val
     val_len = int(len(ds) * split[1])
     train_ds, val_ds = random_split(ds, lengths=[len(ds) - val_len, val_len])

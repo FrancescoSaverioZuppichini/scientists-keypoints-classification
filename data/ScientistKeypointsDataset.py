@@ -23,8 +23,10 @@ class ScientistKeypointsDataset(Dataset):
         self.seq_len = seq_len
 
     def __getitem__(self, idx: int) -> Tuple[Tensor, Tensor]:
-        idx = self.frames[idx]
-        df_slice = self.df.loc[idx:idx + self.seq_len - 1]
+        start = self.frames[idx]
+        seq_len = min(idx + self.seq_len, len(self.frames) - 1)
+        end = self.frames[seq_len - 1]
+        df_slice = self.df.loc[start:end]
         
         keypoints = torch.zeros(self.seq_len, 2, 18)
         # showing how much I am a noob in pandas
@@ -48,7 +50,7 @@ class ScientistKeypointsDataset(Dataset):
         return keypoints, self.target
 
     def __len__(self) -> int:
-        return self.df.shape[0] - 1
+        return len(self.frames)
 
     @classmethod
     def from_path(cls, path: Path,  *args, **kwrags) -> ScientistKeypointsDataset:
