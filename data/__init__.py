@@ -24,7 +24,7 @@ def get_dataloaders(
     train_ds, val_ds = random_split(ds, lengths=[len(ds) - val_len, val_len])
     logging.info(f'Train samples={len(train_ds)}, Validation samples={len(val_ds)}, Test samples={len(test_ds)}')
 
-    train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=False, *args, **kwargs)
+    train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True, *args, **kwargs)
     val_dl = DataLoader(val_ds, batch_size=batch_size, shuffle=False, *args, **kwargs)
     test_dl = DataLoader(test_ds, batch_size=batch_size, shuffle=False, *args, **kwargs)
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from einops.einops import rearrange
 import torch
 from typing import Callable, List, Union, Any, Tuple, Dict
 from torch.utils import data
@@ -14,39 +15,47 @@ from tqdm import tqdm
 class ScientistKeypointsDataset(Dataset):
     labels: Dict[str, int] = {'pick_up': 0, 'walking': 1, 'put_back': 2, 'raise_hand': 3, 'standing': 4}
 
-    def __init__(self, df: pd.DataFrame, label: str, transform: Callable[[Tensor], Tensor] = None):
+    def __init__(self, df: pd.DataFrame, label: str, seq_len: int = 9, transform: Callable[[Tensor], Tensor] = None):
         self.df = df
         self.transform = transform
         self.target = torch.Tensor([-1]).long() if label == '' else torch.Tensor([self.labels[label]]).long()
         self.frames = list(df.index.unique())
+        self.seq_len = seq_len
 
     def __getitem__(self, idx: int) -> Tuple[Tensor, Tensor]:
-        rows = self.df[self.df.index == self.frames[idx]]
-        keypoints = torch.zeros(2, 18)
+        idx = self.frames[idx]
+        df_slice = self.df.loc[idx:idx + self.seq_len - 1]
+        
+        keypoints = torch.zeros(self.seq_len, 2, 18)
+        # showing how much I am a noob in pandas
+        for i, slice_idx in enumerate(df_slice.index.unique()):
+            rows_slice = self.df.loc[slice_idx]
 
-        xs = torch.Tensor(rows.x.values)
-        ys = torch.Tensor(rows.y.values)
-        # center them on left top corner
-        xs -= xs.min()
-        ys -= ys.min()
+            xs = torch.Tensor(rows_slice.x.values)
+            ys = torch.Tensor(rows_slice.y.values)
+            #   center them on left top corner
+            xs -= xs.min()
+            ys -= ys.min()
 
-        keypoints[0, rows.p.values - 1] = xs
-        keypoints[1, rows.p.values - 1] = ys
-
-        keypoints = keypoints.unsqueeze(-1)
+            keypoints[i, 0, rows_slice.p.values - 1] = xs
+            keypoints[i, 1, rows_slice.p.values - 1] = ys
+            
         if self.transform:  
-            keypoints = self.transform(keypoints)
-
+            # we want to normalize the xs and the ys
+            keypoints = self.transform(keypoints.permute(1,2,0)).permute(2,0,1)
+        # seq len to the end
+        keypoints = rearrange(keypoints, 'seq dims features -> (dims features) seq')
         return keypoints, self.target
 
     def __len__(self) -> int:
-        return len(self.frames)
+        return self.df.shape[0] - 1
 
     @classmethod
     def from_path(cls, path: Path,  *args, **kwrags) -> ScientistKeypointsDataset:
         df = pd.read_csv(path, index_col=0,
                          header=0,
                          names=['p', 'x', 'y', 'score'])
+
         return cls(df, *args, **kwrags)
 
     @classmethod

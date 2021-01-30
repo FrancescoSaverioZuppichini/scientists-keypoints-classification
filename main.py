@@ -24,10 +24,11 @@ if __name__ == '__main__':
     # our hyperparameters
     params = {
         'lr': 1e-3,
-        'batch_size': 128,
+        'batch_size': 32,
         'epochs': 100,
-        'model': 'resnet18-finetune',
-        'id': time.time()
+        'model': 'my-cnn-[32-256]',
+        'id': time.time(),
+        'shuffle': True
     }
     logging.info(f'Using device={device} 🚀')
     # everything starts with the data
@@ -41,7 +42,7 @@ if __name__ == '__main__':
     )
     cnn = MyCNN().to(device)
     # print the model summary to show useful information
-    logging.info(summary(cnn, (2, 18, 1)))
+    logging.info(summary(cnn, (36, 16)))
     # # define and create the model's chekpoints dir
     model_checkpoint_dir = project.checkpoint_dir / str(params['id'])
     model_checkpoint_dir.mkdir(exist_ok=True)
@@ -55,18 +56,18 @@ if __name__ == '__main__':
         EarlyStopping(monitor='val_loss', patience=10, verbose=True)
     ]
     # using commet
-    # logger = CometLogger(
-    #     api_key=secrets['COMET_API_KEY'],
-    #     project_name="scientists-keypoints",
-    #     workspace="francescosaveriozuppichini"
-    # )
-    # logger.log_hyperparams(params)
+    logger = CometLogger(
+        api_key=secrets['COMET_API_KEY'],
+        project_name="scientists-keypoints",
+        workspace="francescosaveriozuppichini"
+    )
+    logger.log_hyperparams(params)
     
     system = MySystem(model=cnn, lr=params['lr'])
 
     trainer = Trainer(gpus=1, min_epochs=params['epochs'],
                       progress_bar_refresh_rate=20, 
-                    #   logger=logger,
+                      logger=logger,
                       callbacks=callbacks)
 
     trainer.fit(system, train_dl, val_dl)
