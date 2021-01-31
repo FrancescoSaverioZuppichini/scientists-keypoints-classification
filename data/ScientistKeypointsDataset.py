@@ -63,6 +63,8 @@ class ScientistKeypointsDataset(Dataset):
             keypoints = self.transform(keypoints.permute(1,2,0)).permute(2,0,1)
         # seq len to the end
         keypoints = rearrange(keypoints, 'seq dims features -> (dims features) seq')
+        # if seq_len == 1, then we don't want to have a flat vector
+        keypoints = keypoints.squeeze()
         return keypoints, self.target
 
     def __len__(self) -> int:
