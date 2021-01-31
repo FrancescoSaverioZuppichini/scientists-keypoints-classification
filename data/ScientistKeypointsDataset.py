@@ -1,4 +1,5 @@
 from __future__ import annotations
+from os import stat
 from einops.einops import rearrange
 import torch
 from typing import Callable, List, Union, Any, Tuple, Dict
@@ -16,6 +17,18 @@ class ScientistKeypointsDataset(Dataset):
     labels: Dict[str, int] = {'pick_up': 0, 'walking': 1, 'put_back': 2, 'raise_hand': 3, 'standing': 4}
 
     def __init__(self, df: pd.DataFrame, label: str, seq_len: int = 9, transform: Callable[[Tensor], Tensor] = None):
+        """A dataset representing a single DataFrame with keypoints moving in time
+
+        Usage:
+            >>> ds = ScientistKeypointsDataset.from_path('./your_df.csv')
+            >>> keypoints, label = ds[0]
+
+        Args:
+            df (pd.DataFrame): A pandas' dataframe
+            label (str): current label, check `ScientistKeypointsDataset.labels.values()`
+            seq_len (int, optional): Number of consecutive sequences. Defaults to 9.
+            transform (Callable[[Tensor], Tensor], optional): A function that does something with the keypoints. Defaults to None.
+        """
         self.df = df
         self.transform = transform
         self.target = torch.Tensor([-1]).long() if label == '' else torch.Tensor([self.labels[label]]).long()
@@ -23,11 +36,13 @@ class ScientistKeypointsDataset(Dataset):
         self.seq_len = seq_len
 
     def __getitem__(self, idx: int) -> Tuple[Tensor, Tensor]:
+        # so we are using the frames (aka the unique indixes) to move along
+        # time in the dataframe
         start = self.frames[idx]
         seq_len = min(idx + self.seq_len, len(self.frames) - 1)
         end = self.frames[seq_len - 1]
         df_slice = self.df.loc[start:end]
-        
+        # init all the keypoints with zeros, so we don't have to pad them later :)
         keypoints = torch.zeros(self.seq_len, 2, 18)
         # showing how much I am a noob in pandas
         for i, slice_idx in enumerate(df_slice.index.unique()):
@@ -35,7 +50,7 @@ class ScientistKeypointsDataset(Dataset):
 
             xs = torch.Tensor(rows_slice.x.values)
             ys = torch.Tensor(rows_slice.y.values)
-            #   center them on left top corner
+            #  center them on top left corner
             xs -= xs.min()
             ys -= ys.min()
 
@@ -43,7 +58,8 @@ class ScientistKeypointsDataset(Dataset):
             keypoints[i, 1, rows_slice.p.values - 1] = ys
             
         if self.transform:  
-            # we want to normalize the xs and the ys
+            # apply transform but putting the seq len in the end
+            # and returning the same structure as before
             keypoints = self.transform(keypoints.permute(1,2,0)).permute(2,0,1)
         # seq len to the end
         keypoints = rearrange(keypoints, 'seq dims features -> (dims features) seq')
@@ -52,13 +68,20 @@ class ScientistKeypointsDataset(Dataset):
     def __len__(self) -> int:
         return len(self.frames)
 
+    @staticmethod
+    def get_label_from(path: Path):
+        label = '_'.join(str(path.stem).split('_')[1:])
+        return label
+
     @classmethod
     def from_path(cls, path: Path,  *args, **kwrags) -> ScientistKeypointsDataset:
         df = pd.read_csv(path, index_col=0,
                          header=0,
                          names=['p', 'x', 'y', 'score'])
 
-        return cls(df, *args, **kwrags)
+        label = cls.get_label_from(path)
+
+        return cls(df, label, *args, **kwrags)
 
     @classmethod
     def from_root(cls, root: Path, *args, **kwargs) -> Tuple[ConcatDataset, Dict[str, int]]:
@@ -70,7 +93,7 @@ class ScientistKeypointsDataset(Dataset):
 
         for path in bar:
             bar.set_description(f'{path.stem}')
-            label = '_'.join(str(path.stem).split('_')[1:])
+            label = cls.get_label_from(path)
             if label not in labels:
                 labels[label] = label_idx
                 label_idx += 1
