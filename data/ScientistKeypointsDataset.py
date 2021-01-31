@@ -16,7 +16,7 @@ from tqdm import tqdm
 class ScientistKeypointsDataset(Dataset):
     labels: Dict[str, int] = {'pick_up': 0, 'walking': 1, 'put_back': 2, 'raise_hand': 3, 'standing': 4}
 
-    def __init__(self, df: pd.DataFrame, label: str, seq_len: int = 9, transform: Callable[[Tensor], Tensor] = None):
+    def __init__(self, df: pd.DataFrame, label: str, name: str, seq_len: int = 9, transform: Callable[[Tensor], Tensor] = None):
         """A dataset representing a single DataFrame with keypoints moving in time
 
         Usage:
@@ -34,6 +34,7 @@ class ScientistKeypointsDataset(Dataset):
         self.target = torch.Tensor([-1]).long() if label == '' else torch.Tensor([self.labels[label]]).long()
         self.frames = list(df.index.unique())
         self.seq_len = seq_len
+        self.name = name
 
     def __getitem__(self, idx: int) -> Tuple[Tensor, Tensor]:
         # so we are using the frames (aka the unique indixes) to move along
@@ -76,14 +77,14 @@ class ScientistKeypointsDataset(Dataset):
         return label
 
     @classmethod
-    def from_path(cls, path: Path,  *args, **kwrags) -> ScientistKeypointsDataset:
+    def from_path(cls, path: Path,  *args, label: str = None, **kwrags) -> ScientistKeypointsDataset:
         df = pd.read_csv(path, index_col=0,
                          header=0,
                          names=['p', 'x', 'y', 'score'])
 
-        label = cls.get_label_from(path)
+        label = cls.get_label_from(path) if label is None else label
 
-        return cls(df, label, *args, **kwrags)
+        return cls(df, label, path.stem, *args, **kwrags)
 
     @classmethod
     def from_root(cls, root: Path, *args, **kwargs) -> Tuple[ConcatDataset, Dict[str, int]]:

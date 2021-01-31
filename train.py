@@ -1,4 +1,5 @@
 import json
+from logging import log
 import time
 from comet_ml import Experiment
 import torch.optim as optim
@@ -6,11 +7,11 @@ from torchsummary import summary
 from Project import Project
 from data import get_dataloaders
 from data.transformation import train_transform, val_transform
-from models import MyCNN
+from models import MyCNN, MyLinear
 from utils import device
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.loggers import CometLogger, MLFlowLogger
+from pytorch_lightning.loggers import CometLogger
 from system import MySystem
 from logger import logging
 
@@ -26,10 +27,10 @@ if __name__ == '__main__':
         'lr': 1e-3,
         'batch_size': 64,
         'epochs': 50,
-        'model': 'my-cnn-[32-128]',
+        'model': 'my-linear-[32-128]-drop-only-last',
         'id': time.time(),
         'shuffle': True,
-        'seq_len': 9
+        'seq_len': 96
     }
     logging.info(f'Using device={device} 🚀')
     # everything starts with the data
@@ -42,9 +43,12 @@ if __name__ == '__main__':
         num_workers=4,
         seq_len=params['seq_len']
     )
-    cnn = MyCNN().to(device)
+    model = MyCNN().to(device)
     # print the model summary to show useful information
-    logging.info(summary(cnn, (36, 16)))
+    if params['seq_len'] != 1:
+        logging.info(summary(model, (36, params['seq_len'])))
+    else:
+        logging.warning("torchsummary doesn't work with 1 dim size")
     # # define and create the model's chekpoints dir
     model_checkpoint_dir = project.checkpoint_dir / str(params['id'])
     model_checkpoint_dir.mkdir(exist_ok=True)
@@ -65,7 +69,7 @@ if __name__ == '__main__':
     )
     logger.log_hyperparams(params)
 
-    system = MySystem(model=cnn, lr=params['lr'])
+    system = MySystem(model=model, lr=params['lr'])
 
     trainer = Trainer(gpus=1,
                       min_epochs=params['epochs'],
